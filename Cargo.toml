@@ -1,0 +1,20 @@
+[package]
+name = "youlog"
+version = "0.1.0"
+edition = "2021"
+authors = ["Tim Yuen <timothy.yuen22@gmail.com>"]
+categories = ["development-tools::debugging", "config"]
+description = "A logging crate where you bring your own logging logic"
+keywords = ["log"]
+repository = "https://github.com/sometimes-youwin/youlog.git"
+readme = "README.md"
+license = "MPL-2.0"
+documentation = "https://docs.rs/youlog"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[features]
+default = []
+
+[dependencies]
+log = { version = "0.4.20", features = ["std"] }
