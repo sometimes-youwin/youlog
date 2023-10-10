@@ -87,10 +87,14 @@ impl log::Log for Youlog {
             return metadata.level() <= filter.level;
         }
 
-        false
+        true
     }
 
     fn log(&self, record: &log::Record) {
+        if !self.enabled(record.metadata()) {
+            return;
+        }
+
         (self.raw_fn)(record);
         match record.level() {
             log::Level::Error => (self.error_fn)(record),
@@ -200,7 +204,8 @@ impl Youlog {
         self
     }
 
-    /// Set the log level for a specific module. Overrides the global log level.
+    /// Set the log level for a specific module. Overrides the global log level but cannot be higher than the global
+    /// log level.
     pub fn level(mut self, module: impl AsRef<str>, level: LevelFilter) -> Self {
         let name = module.as_ref();
 
@@ -292,8 +297,29 @@ mod tests {
             unsafe { FN_INT.fetch_add(1, Ordering::Relaxed) };
         }
 
+        mod foo {
+            use super::*;
+
+            pub struct Bar;
+
+            impl Bar {
+                pub fn info() {
+                    info!("bar info!");
+                }
+
+                pub fn debug() {
+                    debug!("bar debug!")
+                }
+
+                pub fn trace() {
+                    trace!("bar trace!")
+                }
+            }
+        }
+
         Youlog::new()
             .global_level(LevelFilter::Debug)
+            .level("youlog::tests::foo", LevelFilter::Info)
             .log_fn(LevelFilter::Info, move |r| {
                 closure_info_counter.fetch_add(1, Ordering::Relaxed);
                 println!("info {}", r.args().as_str().unwrap_or_default());
@@ -339,6 +365,16 @@ mod tests {
         assert_eq!(count(&warn_counter), 0);
         assert_eq!(count(&trace_counter), 0);
         unsafe { assert_eq!(FN_INT.load(Ordering::Relaxed), 4) };
+
+        foo::Bar::trace();
+        foo::Bar::debug();
+        foo::Bar::info();
+
+        assert_eq!(count(&info_counter), 3);
+        assert_eq!(count(&debug_counter), 1);
+        assert_eq!(count(&warn_counter), 0);
+        assert_eq!(count(&trace_counter), 0);
+        unsafe { assert_eq!(FN_INT.load(Ordering::Relaxed), 5) };
     }
 
     #[test]
@@ -348,7 +384,7 @@ mod tests {
         assert!(youlog.enabled(&create_metadata("test", Level::Info)));
         assert!(youlog.enabled(&create_metadata("test::blah", Level::Info)));
         assert!(youlog.enabled(&create_metadata("test::blah::eh", Level::Info)));
-        assert!(!youlog.enabled(&create_metadata("other", Level::Info)));
+        assert!(youlog.enabled(&create_metadata("other", Level::Info)));
         assert!(!youlog.enabled(&create_metadata("test", Level::Trace)));
 
         assert!(!youlog.enabled(&create_metadata("test::blah", Level::Debug)));
